@@ -1,5 +1,6 @@
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { Prisma } from '@prisma/client';
 
 const name = 'price';
 type FormInputNumberProps = {
@@ -15,6 +16,7 @@ function PriceInput({defaultValue}: FormInputNumberProps) {
         type='number'
         id={name}
         min={0}
+        name={name}
         defaultValue={defaultValue || 100}
         required
       />
