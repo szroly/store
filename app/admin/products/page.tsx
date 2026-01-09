@@ -37,7 +37,7 @@ async function AdminProductsPage() {
           {items.map((item) => {
             const { id: productId, name, company, price } = item;
             return (
-              <TableRow>
+              <TableRow key={productId}>
                 <TableCell className="flex items-center gap-x-2">
                   <Link
                     href={`/products/${productId}`}
