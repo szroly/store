@@ -1,8 +1,13 @@
 'use server';
 import db from '@/utils/db';
-import { currentUser } from '@clerk/nextjs/server';
+import { clerkClient, currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { imageSchema, productSchema, validateWithZodSchema } from './schemas';
+import {
+  imageSchema,
+  productSchema,
+  reviewSchema,
+  validateWithZodSchema,
+} from './schemas';
 import { deleteImage, uploadImage } from './supabase';
 import { revalidatePath } from 'next/cache';
 
@@ -185,12 +190,12 @@ export const fetchFavoriteId = async ({ productId }: { productId: string }) => {
     },
     select: {
       id: true,
-    }
+    },
   });
   return favorite?.id || null;
 };
 
-export const toggleFavoriteAction = async (prevState:{
+export const toggleFavoriteAction = async (prevState: {
   productId: string;
   favoriteId: string | null;
   pathname: string;
@@ -201,45 +206,125 @@ export const toggleFavoriteAction = async (prevState:{
   try {
     if (favoriteId) {
       await db.favorite.delete({
-        where: { id: favoriteId }
-      })
+        where: { id: favoriteId },
+      });
     } else {
       await db.favorite.create({
         data: {
           productId,
           clerkId: user.id,
-        }
-      })
+        },
+      });
     }
     revalidatePath(pathname);
-    return { message: favoriteId ? 'Removed from favorites' : 'Added to favorites' };
+    return {
+      message: favoriteId ? 'Removed from favorites' : 'Added to favorites',
+    };
   } catch (error) {
     return renderError(error);
   }
-  
-}
+};
 
 export const fetchUserFavorites = async () => {
   const user = await getAuthUser();
   const favorites = await db.favorite.findMany({
     where: { clerkId: user.id },
-    include: { product: true }
-  })
+    include: { product: true },
+  });
   return favorites;
-}
+};
 
-export const createReviewAction = async (prevState: any, formData: FormData) => {
-  return { message: 'Review submitted successfully' };
-}
+export const createReviewAction = async (
+  prevState: any,
+  formData: FormData
+) => {
+  const user = await getAuthUser();
+
+  try {
+    const rawData = Object.fromEntries(formData);
+    const validatedFields = validateWithZodSchema(reviewSchema, rawData);
+    await db.review.create({
+      data: {
+        ...validatedFields,
+        clerkId: user.id,
+      },
+    });
+    revalidatePath(`/products/${validatedFields.productId}`);
+    return { message: 'Review submitted successfully' };
+  } catch (error) {
+    return renderError(error);
+  }
+};
 
 export const fetchProductReviews = async (productId: string) => {
+  const reviews = await db.review.findMany({
+    where: {
+      productId,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+  return reviews;
+};
 
-}
+export const fetchProductRating = async (productId: string) => {
+  const result = await db.review.groupBy({
+    by: ['productId'],
+    _avg: {
+      rating: true,
+    },
+    _count: {
+      rating: true,
+    },
+    where: {
+      productId,
+    },
+  });
+  return {
+    rating: result[0]?._avg.rating?.toFixed(1) ?? 0,
+    count: result[0]?._count.rating ?? 0,
+  };
+};
 
-export const fetchProductReviewsByUser = async (productId: string) => {}
+export const fetchProductReviewsByUser = async (productId: string) => {
+  const user = await getAuthUser();
+  const reviews = await db.review.findMany({
+    where: {
+      clerkId: user.id,
+    },
+    select: {
+      id: true,
+      rating: true,
+      comment: true,
+      product: {
+        select: {
+          image: true,
+          name: true,
+        },
+      },
+    },
+  });
+  return reviews;
+};
 
-export const deleteReviewAction = async () => {}
+export const deleteReviewAction = async (prevState: { reviewId: string }) => {
+  const { reviewId } = prevState;
+  const user = await getAuthUser();
+  try {
+    await db.review.delete({
+      where: {
+        id: reviewId,
+        clerkId: user.id,
+      },
+    });
 
-export const findExistingReview = async () => {}
+    revalidatePath('/reviews');
+    return { message: 'Review deleted successfully' };
+  } catch (error) {
+    return renderError(error);
+  }
+};
 
-export const fetchProductRating = async () => {}
+export const findExistingReview = async () => {};
+
