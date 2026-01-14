@@ -1,6 +1,6 @@
 'use server';
 import db from '@/utils/db';
-import { clerkClient, currentUser } from '@clerk/nextjs/server';
+import { auth, clerkClient, currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import {
   imageSchema,
@@ -287,7 +287,7 @@ export const fetchProductRating = async (productId: string) => {
   };
 };
 
-export const fetchProductReviewsByUser = async (productId: string) => {
+export const fetchProductReviewsByUser = async () => {
   const user = await getAuthUser();
   const reviews = await db.review.findMany({
     where: {
@@ -326,5 +326,39 @@ export const deleteReviewAction = async (prevState: { reviewId: string }) => {
   }
 };
 
-export const findExistingReview = async () => {};
+export const findExistingReview = async (userId:string, productId:string) => {
+  return db.review.findFirst({
+    where: {
+      clerkId: userId,
+      productId
+    }
+  })
+};
+
+export const fetchCartItems = async () => {
+  const {userId} = auth()
+  const cart = await db.cart.findFirst({
+    where: {
+      clerkId: userId ?? ''
+    },
+    select: {
+      numItemsInCart: true
+    }
+  })
+  return cart?.numItemsInCart || 0
+};
+
+const fetchProduct = async () => {};
+
+export const fetchOrCreateCart = async () => {};
+
+const updateOrCreateCartItem = async () => {};
+
+export const updateCart = async () => {};
+
+export const addToCartAction = async () => {};
+
+export const removeCartItemAction = async () => {};
+
+export const updateCartItemAction = async () => {};
 
